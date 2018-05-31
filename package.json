@@ -112,7 +112,7 @@
       "eslint --max-warnings 0"
     ]
   },
-  "pre-commit": [
+  "pre-committ": [
     "lint-staged",
     "lint-pass"
   ],
