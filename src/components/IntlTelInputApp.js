@@ -492,7 +492,9 @@ class IntlTelInputApp extends Component {
 
     // NOTE: if tempCountry is set to auto, that will be handled separately
     // format
-    this.updateValFromNumber(val, this.props.formatOnInit, doNotify);
+    if (!(!val && !this.nationalMode && !this.autoHideDialCode && !this.props.separateDialCode)) {
+      this.updateValFromNumber(val, this.props.formatOnInit, doNotify);
+    }
   }
 
   initRequests() {
@@ -679,7 +681,7 @@ class IntlTelInputApp extends Component {
     number = this.beforeSetNumber(number);
 
     this.setState(
-      prevState => {
+      (prevState) => {
         if (prevState.showDropDown || prevState.value !== number) {
           if (doNotify) {
             this.notifyPhoneNumberChange(number);
