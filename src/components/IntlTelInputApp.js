@@ -13,6 +13,25 @@ const mobileUserAgentRegexp =
   /Android.+Mobile|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
 
 class IntlTelInputApp extends Component {
+
+  static getDerivedStateFromProps(nextProps, prevState) {
+    let newState = null;
+
+    if (nextProps.value && prevState.value !== nextProps.value) {
+      newState = {
+        value: nextProps.value,
+      };
+    }
+
+    if (nextProps.disabled && prevState.disabled !== nextProps.disabled) {
+      newState = {
+        disabled: nextProps.disabled,
+      };
+    }
+
+    return newState;
+  }
+
   constructor(props) {
     super(props);
 
@@ -61,6 +80,7 @@ class IntlTelInputApp extends Component {
       title: '',
       countryCode: 'us',
       dialCode: '',
+      cursorPosition: (props.value || props.defaultValue).length,
     };
 
     this.selectedCountryData = {};
@@ -151,22 +171,7 @@ class IntlTelInputApp extends Component {
     document.addEventListener('keydown', this.handleDocumentKeyDown);
   }
 
-  componentWillReceiveProps(nextProps) {
-    if (this.props.disabled !== nextProps.disabled) {
-      this.setState({
-        disabled: nextProps.disabled,
-      });
-    }
-
-    if (
-      typeof nextProps.customPlaceholder === 'function' &&
-      this.props.customPlaceholder !== nextProps.customPlaceholder
-    ) {
-      this.updatePlaceholder(nextProps);
-    }
-  }
-
-  componentWillUpdate(nextProps, nextState) {
+  shouldComponentUpdate(nextProps, nextState) {
     if (nextState.showDropdown) {
       document.addEventListener('keydown', this.handleDocumentKeyDown);
       this.bindDocumentClick();
@@ -174,6 +179,8 @@ class IntlTelInputApp extends Component {
       document.removeEventListener('keydown', this.handleDocumentKeyDown);
       this.unbindDocumentClick();
     }
+
+    return true;
   }
 
   componentDidUpdate(prevProps) {
@@ -183,6 +190,13 @@ class IntlTelInputApp extends Component {
     ) {
       this.tempCountry = 'auto';
       this.setInitialState();
+    }
+
+    if (
+      typeof this.props.customPlaceholder === 'function' &&
+      prevProps.customPlaceholder !== this.props.customPlaceholder
+    ) {
+      this.updatePlaceholder(this.props);
     }
   }
 
@@ -266,10 +280,10 @@ class IntlTelInputApp extends Component {
     let selectedIndex = 0;
 
     if (countryCode && countryCode !== 'auto') {
-      selectedIndex = this.preferredCountries.findIndex((country) => country.iso2 === countryCode);
+      selectedIndex = utils.findIndex(this.preferredCountries, (country) => country.iso2 === countryCode);
 
       if (selectedIndex === -1) {
-        selectedIndex = this.countries.findIndex((country) => country.iso2 === countryCode);
+        selectedIndex = utils.findIndex(this.countries, (country) => country.iso2 === countryCode);
         if (selectedIndex === -1) selectedIndex = 0;
         selectedIndex += this.preferredCountries.length;
       }
@@ -298,7 +312,7 @@ class IntlTelInputApp extends Component {
       // on change flag, trigger a custom event
       // Allow Main app to do things when a country is selected
       if (!isInit && prevCountry.iso2 !== countryCode &&
-          typeof this.props.onSelectFlag === 'function') {
+        typeof this.props.onSelectFlag === 'function') {
         const currentNumber = this.state.value;
 
         const fullNumber = this.formatFullNumber(currentNumber);
@@ -519,7 +533,10 @@ class IntlTelInputApp extends Component {
         });
       }
     } else {
-      this.utilsScriptDeferred.resolve();
+      import('../libphonenumber').then(() => {
+        this.loadUtils();
+        this.utilsScriptDeferred.resolve();
+      });
     }
 
     if (this.tempCountry === 'auto') {
@@ -680,8 +697,8 @@ class IntlTelInputApp extends Component {
     if (doFormat && window.intlTelInputUtils && this.selectedCountryData) {
       const format = !this.props.separateDialCode &&
         (this.nationalMode || number.charAt(0) !== '+') ?
-          window.intlTelInputUtils.numberFormat.NATIONAL :
-          window.intlTelInputUtils.numberFormat.INTERNATIONAL;
+        window.intlTelInputUtils.numberFormat.NATIONAL :
+        window.intlTelInputUtils.numberFormat.INTERNATIONAL;
 
       number = window.intlTelInputUtils.formatNumber(number,
         this.selectedCountryData.iso2, format);
@@ -721,7 +738,7 @@ class IntlTelInputApp extends Component {
     // that means we're initialising the plugin with a number that already
     // has a dial code, so fine to ignore this bit
     if (number && this.nationalMode && this.selectedCountryData &&
-        this.selectedCountryData.dialCode === '1' && number.charAt(0) !== '+') {
+      this.selectedCountryData.dialCode === '1' && number.charAt(0) !== '+') {
       if (number.charAt(0) !== '1') {
         number = `1${number}`;
       }
@@ -793,8 +810,8 @@ class IntlTelInputApp extends Component {
 
   clickSelectedFlag() {
     if (!this.state.showDropdown &&
-        !this.state.disabled &&
-        !this.state.readonly) {
+      !this.state.disabled &&
+      !this.state.readonly) {
       this.setState({
         showDropdown: true,
         offsetTop: utils.offset(this.tel).top,
@@ -845,7 +862,7 @@ class IntlTelInputApp extends Component {
     try {
       const container = this.flagDropDown.querySelector('.country-list');
       const containerHeight = parseFloat(
-        window.getComputedStyle(container).getPropertyValue('height'), 10);
+        window.getComputedStyle(container).getPropertyValue('height'));
       const containerTop = utils.offset(container).top;
       const containerBottom = containerTop + containerHeight;
       const elementHeight = utils.getOuterHeight(element);
@@ -932,9 +949,9 @@ class IntlTelInputApp extends Component {
 
   handleSelectedFlagKeydown(e) {
     if (!this.state.showDropdown &&
-       (e.which === this.keys.UP || e.which === this.keys.DOWN ||
+      (e.which === this.keys.UP || e.which === this.keys.DOWN ||
         e.which === this.keys.SPACE || e.which === this.keys.ENTER)
-      ) {
+    ) {
       // prevent form from being submitted if "ENTER" was pressed
       e.preventDefault();
 
@@ -1059,7 +1076,7 @@ class IntlTelInputApp extends Component {
     // Click at the outside of country list
     if (e.target.getAttribute('class') === null ||
       (e.target.getAttribute('class') &&
-       e.target.getAttribute('class').indexOf('country') === -1)) {
+        e.target.getAttribute('class').indexOf('country') === -1)) {
       this.isOpening = false;
     }
 
@@ -1072,14 +1089,24 @@ class IntlTelInputApp extends Component {
   // Either notify phoneNumber changed if component is controlled
   // or udpate the state and notify change if component is uncontrolled
   handleInputChange(e) {
+    let cursorPosition = e.target.selectionStart;
+    const previousValue = e.target.value;
+    const previousStringBeforeCursor = previousValue === '' ? previousValue : previousValue.substring(0, cursorPosition);
     const value = this.props.format ? this.formatNumber(e.target.value) : e.target.value;
 
+    cursorPosition = utils.getCursorPositionAfterFormating(previousStringBeforeCursor, previousValue, value);
+
     if (this.props.value !== undefined) {
-      this.updateFlagFromNumber(value);
-      this.notifyPhoneNumberChange(value);
+      this.setState({
+        cursorPosition,
+      }, () => {
+        this.updateFlagFromNumber(value);
+        this.notifyPhoneNumberChange(value);
+      });
     } else {
       this.setState({
         value,
+        cursorPosition,
       }, () => {
         this.updateFlagFromNumber(value);
         this.notifyPhoneNumberChange(value);
@@ -1138,9 +1165,7 @@ class IntlTelInputApp extends Component {
     const inputClass = this.props.css[1];
     const wrapperStyle = Object.assign({}, this.props.style || {});
 
-    if (this.state.showDropdown) {
-      this.wrapperClass.expanded = true;
-    }
+    this.wrapperClass.expanded = this.state.showDropdown;
 
     const wrapperClass = classNames(this.wrapperClass);
 
@@ -1148,45 +1173,46 @@ class IntlTelInputApp extends Component {
       `${this.selectedCountryData.name}: +${this.selectedCountryData.dialCode}` : 'Unknown';
 
     return (
-      <div className={ wrapperClass } style={ wrapperStyle }>
+      <div className={wrapperClass} style={wrapperStyle}>
         <FlagDropDown
-          refCallback={ this.setFlagDropdownRef }
-          allowDropdown={ this.allowDropdown }
-          dropdownContainer={ this.dropdownContainer }
-          separateDialCode={ this.props.separateDialCode }
-          dialCode={ this.state.dialCode }
-          clickSelectedFlag={ this.clickSelectedFlag }
-          setFlag={ this.setFlag }
-          countryCode={ this.state.countryCode }
-          isMobile={ this.isMobile }
-          handleSelectedFlagKeydown={ this.handleSelectedFlagKeydown }
-          changeHighlightCountry={ this.changeHighlightCountry }
-          countries={ this.countries }
-          showDropdown={ this.state.showDropdown }
-          inputTop={ this.state.offsetTop }
-          inputOuterHeight={ this.state.outerHeight }
-          preferredCountries={ this.preferredCountries }
-          highlightedCountry={ this.state.highlightedCountry }
-          titleTip={ titleTip }
+          refCallback={this.setFlagDropdownRef}
+          allowDropdown={this.allowDropdown}
+          dropdownContainer={this.dropdownContainer}
+          separateDialCode={this.props.separateDialCode}
+          dialCode={this.state.dialCode}
+          clickSelectedFlag={this.clickSelectedFlag}
+          setFlag={this.setFlag}
+          countryCode={this.state.countryCode}
+          isMobile={this.isMobile}
+          handleSelectedFlagKeydown={this.handleSelectedFlagKeydown}
+          changeHighlightCountry={this.changeHighlightCountry}
+          countries={this.countries}
+          showDropdown={this.state.showDropdown}
+          inputTop={this.state.offsetTop}
+          inputOuterHeight={this.state.outerHeight}
+          preferredCountries={this.preferredCountries}
+          highlightedCountry={this.state.highlightedCountry}
+          titleTip={titleTip}
         />
         <TelInput
-          refCallback={ this.setTelRef }
-          handleInputChange={ this.handleInputChange }
-          handleOnBlur={ this.handleOnBlur }
-          className={ inputClass }
-          disabled={ this.state.disabled }
-          readonly={ this.state.readonly }
-          fieldName={ this.props.fieldName }
-          fieldId={ this.props.fieldId }
-          value={ this.state.value }
+          refCallback={this.setTelRef}
+          handleInputChange={this.handleInputChange}
+          handleOnBlur={this.handleOnBlur}
+          className={inputClass}
+          disabled={this.state.disabled}
+          readonly={this.state.readonly}
+          fieldName={this.props.fieldName}
+          fieldId={this.props.fieldId}
+          value={this.state.value}
           placeholder={
             this.props.placeholder !== undefined
               ? this.props.placeholder
               : this.state.placeholder
           }
-          autoFocus={ this.props.autoFocus }
-          autoComplete={ this.props.autoComplete }
-          inputProps={ this.props.telInputProps }
+          autoFocus={this.props.autoFocus}
+          autoComplete={this.props.autoComplete}
+          inputProps={this.props.telInputProps}
+          cursorPosition={this.state.cursorPosition}
         />
       </div>
     );
